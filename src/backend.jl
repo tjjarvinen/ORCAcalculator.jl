@@ -125,7 +125,7 @@ function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=std
             end
         end
         dipoles = [ parse(Float64, split(lines[i])[2]) for i in dipole_lines  ]
-        out[:dipolemoment] = SVector(dipoles...) .* u"debye"
+        out[:dipolemoment] = SVector(dipoles...) .* debye
     end
 
     ## Forces output ##
