@@ -6,7 +6,8 @@ struct ORCAcalculatorbundle
 end
 
 
-AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
+AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
+    ::AtomsCalculators.Energy,
     system,
     orca::ORCAcalculatorbundle;
     orca_stdout=stdout,
@@ -14,11 +15,12 @@ AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
     kwargs...
 )
     res = calculate(system, orca.exection, orca.method; orca_stdout=orca_stdout, ghosts=ghosts)
-    return res[:energy]
+    return NamedTuple( pairs(res) )
 end
 
 
-AtomsCalculators.@generate_interface function AtomsCalculators.forces(
+AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
+    ::AtomsCalculators.Forces,
     system, 
     orca::ORCAcalculatorbundle; 
     orca_stdout=stdout, 
@@ -26,7 +28,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(
     kwargs...
 )
     res = calculate(system, orca.exection, orca.method; orca_stdout=orca_stdout, engrad=true, numgrad=numgrad)
-    return res[:forces]
+    return NamedTuple( pairs(res) )
 end
 
 
