@@ -102,10 +102,12 @@ function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=std
     end
 
     # Read results
+    out = Dict{Symbol, Any}()
     orca_results_file = joinpath(oex.tmp_dir, oex.base_name * "_property.txt")
     if isfile(orca_results_file)
         res = read(orca_results_file, String)
-        out = Dict{Symbol, Any}()
+
+        # Energy
         for line in eachline(IOBuffer(res))
             if occursin(r"Total Energy*\d*", line)
                 e = parse(Float64, split(line)[3])
@@ -113,6 +115,17 @@ function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=std
                 break
             end
         end
+
+        # Dipolement
+        lines = split(res, "\n")
+        dipole_lines = nothing
+        for (i,line) in enumerate(lines)
+            if occursin(r"Total Dipole moment:", line)
+                dipole_lines = i+2:i+4
+            end
+        end
+        dipoles = [ parse(Float64, split(lines[i])[2]) for i in dipole_lines  ]
+        out[:dipolemoment] = SVector(dipoles...) .* u"debye"
     end
 
     ## Forces output ##

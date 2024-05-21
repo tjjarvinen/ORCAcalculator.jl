@@ -41,5 +41,5 @@ function AtomsCalculators.energy_forces(
     kwargs...
 )
     res = calculate(system, orca.exection, orca.method; orca_stdout=orca_stdout, engrad=true, numgrad=numgrad)
-    return ( energy=res[:energy], forces=res[:forces])
+    return NamedTuple( pairs(res) )
 end
