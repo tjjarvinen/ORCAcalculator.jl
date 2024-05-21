@@ -35,7 +35,15 @@ struct OrcaMethod
 end
 
 
-function write_input(io, system, oex::OrcaExecutable, oct::OrcaMethod; add_engrad=false, add_numgrad=false)
+function write_input(
+    io, 
+    system, 
+    oex::OrcaExecutable, 
+    oct::OrcaMethod; 
+    add_engrad=false, 
+    add_numgrad=false,
+    ghosts=()
+)
     if add_engrad
         println(io, "! ENGRAD")
     end
@@ -50,16 +58,20 @@ function write_input(io, system, oex::OrcaExecutable, oct::OrcaMethod; add_engra
     end
     println(io, "%maxcore $(oex.memcore)\n")
     println(io, "*xyz 0 1")
-    foreach(system) do atom
+    foreach( enumerate(system) ) do (i,atom)
         s = atomic_symbol(atom)
         r = ustrip.( u"Å", position(atom) )
-        println(io, s, " ", r[1], " ", r[2], " ", r[3])
+        if i in ghosts
+            println(io, s, " : ", r[1], " ", r[2], " ", r[3])
+        else
+            println(io, s, " ", r[1], " ", r[2], " ", r[3])
+        end
     end
     println(io, "*")
 end
 
 
-function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=stdout, engrad=false, numgrad=false)
+function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=stdout, engrad=false, numgrad=false, ghosts=())
     # Clean old files
     files = readdir(oex.tmp_dir)
     foreach(files) do file
@@ -71,7 +83,7 @@ function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=std
     # Write input
     f_input = joinpath(oex.tmp_dir, oex.base_name * ".inp")
     open(f_input, "w") do io
-        write_input(io, system, oex, oct; add_engrad=engrad, add_numgrad=numgrad)
+        write_input(io, system, oex, oct; add_engrad=engrad, add_numgrad=numgrad, ghosts=ghosts)
     end
 
     # Perform calculation

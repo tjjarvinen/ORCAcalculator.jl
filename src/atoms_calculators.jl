@@ -10,9 +10,10 @@ AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
     system,
     orca::ORCAcalculatorbundle;
     orca_stdout=stdout,
+    ghosts=(),
     kwargs...
 )
-    res = calculate(system, orca.exection, orca.method; orca_stdout=orca_stdout)
+    res = calculate(system, orca.exection, orca.method; orca_stdout=orca_stdout, ghosts=ghosts)
     return res[:energy]
 end
 
