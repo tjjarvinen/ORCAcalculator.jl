@@ -1,0 +1,7 @@
+[deps]
+AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
+AtomsCalculators = "a3e0e189-c65a-42c1-833c-339540406eb1"
+ORCAcalculator = "d4844180-6869-4019-b280-c8aa004091c3"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
