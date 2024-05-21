@@ -9,7 +9,7 @@ using Test
 @testset "ORCAcalculator.jl" begin
     # Write your tests here.
     ox = OrcaExecutable()
-    om = OrcaMethod("blyp", "def2-svp")
+    om = OrcaMethod("blyp def2-svp")
     orca = ORCAcalculatorbundle( ox, om )
 
     hydrogen = isolated_system([

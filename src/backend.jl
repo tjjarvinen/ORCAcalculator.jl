@@ -27,10 +27,10 @@ struct OrcaExecutable
 end
 
 struct OrcaMethod
-    basis::String
     method::String
-    function OrcaMethod(basis::AbstractString, method::AbstractString)
-        new(basis, method)
+    control::String
+    function OrcaMethod(method::AbstractString, control::AbstractString="")
+        new(method, control)
     end
 end
 
@@ -51,7 +51,7 @@ function write_input(
         println(io, "! NUMGRAD")
     end
     println(io, "! ", oct.method)
-    println(io, "! ", oct.basis)
+    println(io, oct.control)
     println(io, "! MINIPRINT\n")
     if oex.ncore > 1
         println(io, "%pal nprocs $(oex.ncore) end")
