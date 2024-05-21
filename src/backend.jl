@@ -19,6 +19,9 @@ struct OrcaExecutable
         base_name="orca_calculation"
     )   
         orca_location = something(executable, readchomp(`which orca`))
+        if ! isfile(orca_location*"_scf")
+            error("ORCA executable location does not have all ORCA binaries")
+        end
         if ! isdir(tmp_dir)
             error("tmp dir does not exist")
         end
@@ -27,15 +30,23 @@ struct OrcaExecutable
 end
 
 struct OrcaMethod
-    basis::String
     method::String
-    function OrcaMethod(basis::AbstractString, method::AbstractString)
-        new(basis, method)
+    control::String
+    function OrcaMethod(method::AbstractString, control::AbstractString="")
+        new(method, control)
     end
 end
 
 
-function write_input(io, system, oex::OrcaExecutable, oct::OrcaMethod; add_engrad=false, add_numgrad=false)
+function write_input(
+    io, 
+    system, 
+    oex::OrcaExecutable, 
+    oct::OrcaMethod; 
+    add_engrad=false, 
+    add_numgrad=false,
+    ghosts=()
+)
     if add_engrad
         println(io, "! ENGRAD")
     end
@@ -43,23 +54,27 @@ function write_input(io, system, oex::OrcaExecutable, oct::OrcaMethod; add_engra
         println(io, "! NUMGRAD")
     end
     println(io, "! ", oct.method)
-    println(io, "! ", oct.basis)
+    println(io, oct.control)
     println(io, "! MINIPRINT\n")
     if oex.ncore > 1
         println(io, "%pal nprocs $(oex.ncore) end")
     end
     println(io, "%maxcore $(oex.memcore)\n")
     println(io, "*xyz 0 1")
-    foreach(system) do atom
+    foreach( enumerate(system) ) do (i,atom)
         s = atomic_symbol(atom)
         r = ustrip.( u"Å", position(atom) )
-        println(io, s, " ", r[1], " ", r[2], " ", r[3])
+        if i in ghosts
+            println(io, s, " : ", r[1], " ", r[2], " ", r[3])
+        else
+            println(io, s, " ", r[1], " ", r[2], " ", r[3])
+        end
     end
     println(io, "*")
 end
 
 
-function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=stdout, engrad=false, numgrad=false)
+function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=stdout, engrad=false, numgrad=false, ghosts=())
     # Clean old files
     files = readdir(oex.tmp_dir)
     foreach(files) do file
@@ -71,7 +86,7 @@ function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=std
     # Write input
     f_input = joinpath(oex.tmp_dir, oex.base_name * ".inp")
     open(f_input, "w") do io
-        write_input(io, system, oex, oct; add_engrad=engrad, add_numgrad=numgrad)
+        write_input(io, system, oex, oct; add_engrad=engrad, add_numgrad=numgrad, ghosts=ghosts)
     end
 
     # Perform calculation
@@ -87,10 +102,12 @@ function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=std
     end
 
     # Read results
+    out = Dict{Symbol, Any}()
     orca_results_file = joinpath(oex.tmp_dir, oex.base_name * "_property.txt")
     if isfile(orca_results_file)
         res = read(orca_results_file, String)
-        out = Dict{Symbol, Any}()
+
+        # Energy
         for line in eachline(IOBuffer(res))
             if occursin(r"Total Energy*\d*", line)
                 e = parse(Float64, split(line)[3])
@@ -98,6 +115,17 @@ function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=std
                 break
             end
         end
+
+        # Dipolement
+        lines = split(res, "\n")
+        dipole_lines = nothing
+        for (i,line) in enumerate(lines)
+            if occursin(r"Total Dipole moment:", line)
+                dipole_lines = i+2:i+4
+            end
+        end
+        dipoles = [ parse(Float64, split(lines[i])[2]) for i in dipole_lines  ]
+        out[:dipolemoment] = SVector(dipoles...) .* debye
     end
 
     ## Forces output ##
