@@ -3,6 +3,14 @@ uuid = "d4844180-6869-4019-b280-c8aa004091c3"
 authors = ["Teemu Järvinen"]
 version = "0.1.0-DEV"
 
+[deps]
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
+AtomsCalculators = "a3e0e189-c65a-42c1-833c-339540406eb1"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
+
 [compat]
 julia = "1.9"
 

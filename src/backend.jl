@@ -1,0 +1,147 @@
+
+
+struct OrcaExecutable
+    "path for orca excecutable"
+    executable
+    "number of cores in calculation"
+    ncore::UInt
+    "maximum memory per core in megabytes"
+    memcore::UInt
+    "directory where calculations are performed"
+    tmp_dir
+    "prefix of files used in calculation"
+    base_name
+    function OrcaExecutable(;
+        executable=nothing,
+        ncore=1,
+        maxmem=1000,
+        tmp_dir=mktempdir(),
+        base_name="orca_calculation"
+    )   
+        orca_location = something(executable, readchomp(`which orca`))
+        if ! isdir(tmp_dir)
+            error("tmp dir does not exist")
+        end
+        new(orca_location, ncore, maxmem, tmp_dir, base_name)
+    end
+end
+
+struct OrcaMethod
+    basis::String
+    method::String
+    function OrcaMethod(basis::AbstractString, method::AbstractString)
+        new(basis, method)
+    end
+end
+
+
+function write_input(io, system, oex::OrcaExecutable, oct::OrcaMethod; add_engrad=false, add_numgrad=false)
+    if add_engrad
+        println(io, "! ENGRAD")
+    end
+    if add_numgrad
+        println(io, "! NUMGRAD")
+    end
+    println(io, "! ", oct.method)
+    println(io, "! ", oct.basis)
+    println(io, "! MINIPRINT\n")
+    if oex.ncore > 1
+        println(io, "%pal nprocs $(oex.ncore) end")
+    end
+    println(io, "%maxcore $(oex.memcore)\n")
+    println(io, "*xyz 0 1")
+    foreach(system) do atom
+        s = atomic_symbol(atom)
+        r = ustrip.( u"Å", position(atom) )
+        println(io, s, " ", r[1], " ", r[2], " ", r[3])
+    end
+    println(io, "*")
+end
+
+
+function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=stdout, engrad=false, numgrad=false)
+    # Clean old files
+    files = readdir(oex.tmp_dir)
+    foreach(files) do file
+        if occursin( Regex(oex.base_name * "*"), file )
+            rm( joinpath(oex.tmp_dir, file) )
+        end
+    end
+
+    # Write input
+    f_input = joinpath(oex.tmp_dir, oex.base_name * ".inp")
+    open(f_input, "w") do io
+        write_input(io, system, oex, oct; add_engrad=engrad, add_numgrad=numgrad)
+    end
+
+    # Perform calculation
+    orca_status = (run ∘ pipeline)(`$(oex.executable) $f_input`; stdout=orca_stdout)
+    if orca_status.termsignal != 0
+        # delete temporary files and raise error
+        foreach(files) do file
+            if occursin( Regex(oex.base_name * "*.tmp"), file )
+                rm( joinpath(oex.tmp_dir, file) )
+            end
+        end
+        error("there was an problem with orca call")
+    end
+
+    # Read results
+    orca_results_file = joinpath(oex.tmp_dir, oex.base_name * "_property.txt")
+    if isfile(orca_results_file)
+        res = read(orca_results_file, String)
+        out = Dict{Symbol, Any}()
+        for line in eachline(IOBuffer(res))
+            if occursin(r"Total Energy*\d*", line)
+                e = parse(Float64, split(line)[3])
+                out[:energy] = e * u"hartree"
+                break
+            end
+        end
+    end
+
+    ## Forces output ##
+    ###################
+    orca_engrad_file = joinpath(oex.tmp_dir, oex.base_name * ".engrad")
+    if isfile(orca_engrad_file)  # we have .engrad file
+
+        res = read(orca_engrad_file, String)
+
+        # We need to look for the block type
+        # 0 is unknown block
+        # 1 is energy block
+        # 2 is gradient block coming next, but numbers not started yet
+        # 3 is gradient block numbers started
+        t = 0
+        grad = Float64[]
+        sizehint!(grad, 3*length(system))
+        for line in eachline(IOBuffer(res))
+            #@info "t = $t"
+            if t == 0  # look for block type
+                if occursin(r"The current gradient in Eh/bohr", line)
+                    t = 2
+                elseif occursin(r"The current total energy in Eh", line)
+                    t = 1
+                end
+            else
+                if t == 1 && line[begin] != '#' # energy line number
+                    out[:energy] = parse(Float64, line) * u"hartree"
+                    t = 0
+                elseif t == 2 && line[begin] != '#' # gradient line first number
+                    f = parse(Float64, line)
+                    append!(grad, f)
+                    t = 3
+                elseif t == 3 && line[begin] != '#' # gradient line numbers from 2->
+                    f = parse(Float64, line)
+                    append!(grad, f)
+                elseif t == 3 && line[begin] == '#'
+                    #all done
+                    break
+                end
+            end
+        end
+        tmp = reshape(grad, 3, :)
+        out[:forces] = - reinterpret(reshape, SVector{3, Float64}, tmp) * u"hartree/bohr"
+    end
+    return out
+end
