@@ -19,6 +19,9 @@ struct OrcaExecutable
         base_name="orca_calculation"
     )   
         orca_location = something(executable, readchomp(`which orca`))
+        if ! isfile(orca_location*"_scf")
+            error("ORCA executable location does not have all ORCA binaries")
+        end
         if ! isdir(tmp_dir)
             error("tmp dir does not exist")
         end
