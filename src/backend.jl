@@ -1,6 +1,6 @@
 
 
-struct OrcaExecutable
+struct ORCAexecutable
     "path for orca excecutable"
     executable
     "number of cores in calculation"
@@ -11,7 +11,7 @@ struct OrcaExecutable
     tmp_dir
     "prefix of files used in calculation"
     base_name
-    function OrcaExecutable(;
+    function ORCAexecutable(;
         executable=nothing,
         ncore=1,
         maxmem=1000,
@@ -29,10 +29,10 @@ struct OrcaExecutable
     end
 end
 
-struct OrcaMethod
+struct ORCAmethod
     method::String
     control::String
-    function OrcaMethod(method::AbstractString, control::AbstractString="")
+    function ORCAmethod(method::AbstractString, control::AbstractString="")
         new(method, control)
     end
 end
@@ -41,8 +41,8 @@ end
 function write_input(
     io, 
     system, 
-    oex::OrcaExecutable, 
-    oct::OrcaMethod; 
+    oex::ORCAexecutable, 
+    oct::ORCAmethod; 
     add_engrad=false, 
     add_numgrad=false,
     ghosts=()
@@ -74,7 +74,7 @@ function write_input(
 end
 
 
-function calculate(system, oex::OrcaExecutable, oct::OrcaMethod; orca_stdout=stdout, engrad=false, numgrad=false, ghosts=())
+function calculate(system, oex::ORCAexecutable, oct::ORCAmethod; orca_stdout=stdout, engrad=false, numgrad=false, ghosts=())
     # Clean old files
     files = readdir(oex.tmp_dir)
     foreach(files) do file

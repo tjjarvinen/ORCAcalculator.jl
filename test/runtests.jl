@@ -8,8 +8,8 @@ using Test
 
 @testset "ORCAcalculator.jl" begin
     # Write your tests here.
-    ox = OrcaExecutable()
-    om = OrcaMethod("blyp def2-svp")
+    ox = ORCAexecutable()
+    om = ORCAmethod("blyp def2-svp")
     orca = ORCAcalculatorbundle( ox, om )
 
     hydrogen = isolated_system([
@@ -18,4 +18,5 @@ using Test
     ])
 
     test_energy_forces(hydrogen, orca; orca_stdout=devnull)
+    test_forces(hydrogen, orca; orca; orca_stdout=devnull, numgrad=true)
 end

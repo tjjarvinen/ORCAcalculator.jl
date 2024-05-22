@@ -6,8 +6,8 @@ using StaticArrays
 using Unitful
 using UnitfulAtomic
 
-export OrcaExecutable
-export OrcaMethod
+export ORCAexecutable
+export ORCAmethod
 export ORCAcalculatorbundle
 
 @unit debye "D" debye (1e-21/299792458)*u"C*m" false

@@ -1,8 +1,8 @@
 
 # New AtomsCalculators style with state (execution) and parameters (medhod)
 struct ORCAcalculatorbundle
-    exection::OrcaExecutable
-    method::OrcaMethod
+    exection::ORCAexecutable
+    method::ORCAmethod
 end
 
 
