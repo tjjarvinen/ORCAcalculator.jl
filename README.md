@@ -105,3 +105,36 @@ res = AtomsCalculators.calculate( AtomsCalculators.Energy(),  hydrogen, orca)
 
 @show res[:dipolemoment]
 ```
+
+## Example calculate non-covalent interraction between two nitrogen molecules
+
+```julia
+using AtomsBase
+using AtomsCalculators
+using ORCAcalculator
+using Unitful
+
+
+orca = ORCAcalculatorbundle(
+    ORCAexecutable(ncore=4, maxmem=2000),
+    ORCAmethod("CCSD(T)-F12/RI TIGHTSCF cc-pVDZ-F12 cc-pVDZ-F12-CABS cc-pVTZ/C")
+)
+
+n2_complex = isolated_system([
+    :N => [0.0, 0.0, 0.0]u"Å",
+    :N => [0.0, 0.0, 1.1]u"Å",
+
+    :N => [3.5, 0.0, 0.0]u"Å",
+    :N => [4.6, 0.0, 0.0]u"Å",
+])
+
+#
+E12 = AtomsCalculators.potential_energy(n2_complex, orca)
+
+# ghosts add basis functions to atoms 1 and 2, while only 3 and 4 have nucleus and electrons
+E2 = AtomsCalculators.potential_energy(n2_complex, orca; ghosts=[1,2])
+
+E1 = AtomsCalculators.potential_energy(n2_complex, orca; ghosts=[3,4])
+
+E = E12 - E1 - E2
+```
