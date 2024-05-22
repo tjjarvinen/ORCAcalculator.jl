@@ -90,15 +90,15 @@ function calculate(system, oex::ORCAexecutable, oct::ORCAmethod; orca_stdout=std
     end
 
     # Perform calculation
-    orca_status = (run ∘ pipeline)(`$(oex.executable) $f_input`; stdout=orca_stdout)
-    if orca_status.termsignal != 0
-        # delete temporary files and raise error
+    try
+        (run ∘ pipeline)(`$(oex.executable) $f_input`; stdout=orca_stdout)
+    catch err
         foreach(files) do file
             if occursin( Regex(oex.base_name * "*.tmp"), file )
                 rm( joinpath(oex.tmp_dir, file) )
             end
         end
-        error("there was an problem with orca call")
+        throw(err)
     end
 
     # Read results

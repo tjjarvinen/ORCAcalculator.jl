@@ -18,5 +18,9 @@ using Test
     ])
 
     test_energy_forces(hydrogen, orca; orca_stdout=devnull)
-    test_forces(hydrogen, orca; orca; orca_stdout=devnull, numgrad=true)
+    test_forces(hydrogen, orca; orca_stdout=devnull, numgrad=true)
+
+    om = ORCAmethod("blyp def2-svvp") # Broken
+    orca = ORCAcalculatorbundle( ox, om )
+    @test_throws ProcessFailedException AtomsCalculators.potential_energy(hydrogen, orca; orca_stdout=devnull)
 end
