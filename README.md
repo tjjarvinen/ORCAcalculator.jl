@@ -1,9 +1,6 @@
 # ORCAcalculator
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://tjjarvinen.github.io/ORCAcalculator.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://tjjarvinen.github.io/ORCAcalculator.jl/dev/)
-
-Julia inteface to [ORCA](orcaforum.kofo.mpg.de).
+Julia inteface to [ORCA](https://www.faccts.de/orca/).
 
 Currently supported calculation results are:
 
@@ -13,7 +10,7 @@ Currently supported calculation results are:
 
 ## Installation
 
-You need to download ORCA from official [forum](orcaforum.kofo.mpg.de) and install it.
+You need to download ORCA from the official [forum](https://orcaforum.kofo.mpg.de) and install it.
 If you add ORCA directory to `PATH` then everything should work.
 The package will call `which orca` at creation of `ORCAexecutable` and, if the given path then includes
 other ORCA executables, you should be good to go. If not, you can give path to ORCA executable
@@ -51,7 +48,11 @@ ORCAmethod(
 )
 ```
 
-After this you can call `ORCAcalculator.calculate` to perform calculations.
+After this you can call `ORCAcalculator.calculate` to perform calculations on [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl) structures
+
+```julia
+ORCAcalculator.calculate(system, orca)
+```
 
 ## AtomsCalculators Support
 
@@ -86,8 +87,8 @@ orca = ORCAcalculatorbundle(
 
 AtomsCalculators.potential_energy(hydrogen, orca)
 
-# Suppress ORCA output
-AtomsCalculators.potential_energy(hydrogen, orca; orca_stdout=devnull)
+# Print ORCA output
+AtomsCalculators.potential_energy(hydrogen, orca; orca_stdout=stdout)
 
 
 # Forces
@@ -101,12 +102,15 @@ You can get access to dipolemoment by using calculator interface
 
 ```julia
 # Works for Energy() and Forces()
-res = AtomsCalculators.calculate( AtomsCalculators.Energy(),  hydrogen, orca)
+res = AtomsCalculators.calculate( AtomsCalculators.Energy(), hydrogen, orca )
 
 @show res[:dipolemoment]
 ```
 
 ## Example calculate non-covalent interraction between two nitrogen molecules
+
+This example uses counterpoise correction to
+correct basis set superposition error between two molecules.
 
 ```julia
 using AtomsBase
@@ -128,7 +132,7 @@ n2_complex = isolated_system([
     :N => [4.6, 0.0, 0.0]u"Å",
 ])
 
-#
+
 E12 = AtomsCalculators.potential_energy(n2_complex, orca)
 
 # ghosts add basis functions to atoms 1 and 2, while only 3 and 4 have nucleus and electrons

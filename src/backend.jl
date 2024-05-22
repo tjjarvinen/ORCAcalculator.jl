@@ -1,16 +1,43 @@
 
+"""
+    ORCAexecutable(kwords...)
 
+Holds information about ORCA executables and where calculation is performed.
+
+Normally tries to find ORCA binary automatically. If this does not work, or you want to use
+a special version. You can give path to the binary directly with `executable` keyword.
+
+Different calculators can run on same directory when they have different `base_name`.
+
+# Fields
+
+- `executable::String`           :  path to orca executable binary
+- `ncore::UInt=1`                :  number of cores used in calculations
+- `memcore::UInt=1000`           :  maximum memory per cores in calcualations
+- `tmp_dir::String=mktempdir()`  :  directory where calculations are performed
+- `base_name::String`            :  base name for files that are created during calculation
+
+# Example
+
+Find orca executable and create temporary directory for calculations.
+Calculations use two cores and max 2GB memory
+
+```julia
+ORCAexecutable(ncore=2, memcore=2000)
+```
+
+"""
 struct ORCAexecutable
     "path for orca excecutable"
-    executable
+    executable::String
     "number of cores in calculation"
     ncore::UInt
     "maximum memory per core in megabytes"
     memcore::UInt
     "directory where calculations are performed"
-    tmp_dir
+    tmp_dir::String
     "prefix of files used in calculation"
-    base_name
+    base_name::String
     function ORCAexecutable(;
         executable=nothing,
         ncore=1,
@@ -18,8 +45,9 @@ struct ORCAexecutable
         tmp_dir=mktempdir(),
         base_name="orca_calculation"
     )   
-        orca_location = something(executable, readchomp(`which orca`))
-        if ! isfile(orca_location*"_scf")
+        # look for orca_scf instead of orca as there is an other Unix orca program
+        orca_location = something(executable, readchomp(`which orca_scf`)[begin:end-4])
+        if ! ( isfile(orca_location)   &&   isfile(orca_location*"_scf")  )
             error("ORCA executable location does not have all ORCA binaries")
         end
         if ! isdir(tmp_dir)
@@ -29,8 +57,41 @@ struct ORCAexecutable
     end
 end
 
+
+"""
+    ORCAmethod(method::AbstractString, control::AbstractString="")
+
+Used to write method definition to ORCA input file.
+
+`method` will be prefixed with "!" in input file.
+This is mainly ment to define calculation method and basis.
+
+`control` is added as is. This allows you to put in general input
+like control blocks starting with "%"
+
+# Example
+
+A simple DFT calculation
+
+```julia
+ORCAmethod("B3LYP D4 def2-TZVPP")
+```
+
+Use control block to control calculation
+
+```julia
+ORCAmethod(
+    "RI-MP2 SVP def2-SVP/C",
+    "%mp2 natorbs true
+        density unrelaxed
+    end"
+)
+```
+"""
 struct ORCAmethod
+    "will be prefixed with ! in ORCA input"
     method::String
+    "will be added as is to ORCA input"
     control::String
     function ORCAmethod(method::AbstractString, control::AbstractString="")
         new(method, control)
@@ -74,7 +135,15 @@ function write_input(
 end
 
 
-function calculate(system, oex::ORCAexecutable, oct::ORCAmethod; orca_stdout=stdout, engrad=false, numgrad=false, ghosts=())
+function calculate(
+    system, 
+    oex::ORCAexecutable, 
+    oct::ORCAmethod; 
+    orca_stdout=devnull, 
+    engrad=false, 
+    numgrad=false, 
+    ghosts=()
+)
     # Clean old files
     files = readdir(oex.tmp_dir)
     foreach(files) do file
@@ -93,7 +162,8 @@ function calculate(system, oex::ORCAexecutable, oct::ORCAmethod; orca_stdout=std
     try
         (run ∘ pipeline)(`$(oex.executable) $f_input`; stdout=orca_stdout)
     catch err
-        foreach(files) do file
+        # Remove temporary file that can be very large
+        foreach(readdir(oex.tmp_dir)) do file
             if occursin( Regex(oex.base_name * "*.tmp"), file )
                 rm( joinpath(oex.tmp_dir, file) )
             end
@@ -101,7 +171,8 @@ function calculate(system, oex::ORCAexecutable, oct::ORCAmethod; orca_stdout=std
         throw(err)
     end
 
-    # Read results
+    ## Read results #
+    #################
     out = Dict{Symbol, Any}()
     orca_results_file = joinpath(oex.tmp_dir, oex.base_name * "_property.txt")
     if isfile(orca_results_file)
@@ -153,6 +224,8 @@ function calculate(system, oex::ORCAexecutable, oct::ORCAmethod; orca_stdout=std
                 end
             else
                 if t == 1 && line[begin] != '#' # energy line number
+                    # this has more decimals than the one in _properties.txt
+                    # so we override the the _properties.txt value
                     out[:energy] = parse(Float64, line) * u"hartree"
                     t = 0
                 elseif t == 2 && line[begin] != '#' # gradient line first number

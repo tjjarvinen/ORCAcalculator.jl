@@ -1,5 +1,38 @@
 
 # New AtomsCalculators style with state (execution) and parameters (medhod)
+
+"""
+    ORCAcalculatorbundle
+
+Used to wrap `ORCAexecutable` and `ORCAmethod` together to form a AtomsCalculators
+compatable calculator.
+
+# Fields
+- exection::ORCAexecutable
+- method::ORCAmethod
+
+# Example
+
+Simple calculation using AtomsCalculators
+
+```julia
+using ORCAcalculator
+using AtomsBase
+using AtomsCalculators
+using Unitful
+
+orca = ORCAcalculatorbundle(
+    ORCAexecutable()
+    ORCAmethod("blyp def2-svp")
+)
+```
+hydrogen = isolated_system([
+    :H => [0, 0, 0.]u"Å",
+    :H => [0, 0, 1.]u"Å"
+])
+
+AtomsCalculators.potential_energy(hydrogen, orca)
+"""
 struct ORCAcalculatorbundle
     exection::ORCAexecutable
     method::ORCAmethod
@@ -10,7 +43,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
     ::AtomsCalculators.Energy,
     system,
     orca::ORCAcalculatorbundle;
-    orca_stdout=stdout,
+    orca_stdout=devnull,
     ghosts=(),
     kwargs...
 )
@@ -23,7 +56,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
     ::AtomsCalculators.Forces,
     system, 
     orca::ORCAcalculatorbundle; 
-    orca_stdout=stdout, 
+    orca_stdout=devnull, 
     numgrad=false, 
     kwargs...
 )
@@ -38,7 +71,7 @@ AtomsCalculators.promote_force_type(::Any, ::ORCAcalculatorbundle) = SVector(1.,
 function AtomsCalculators.energy_forces(
     system, 
     orca::ORCAcalculatorbundle; 
-    orca_stdout=stdout, 
+    orca_stdout=devnull, 
     numgrad=false, 
     kwargs...
 )
