@@ -8,8 +8,8 @@ using Test
 
 @testset "ORCAcalculator.jl" begin
     # Write your tests here.
-    ox = OrcaExecutable()
-    om = OrcaMethod("blyp def2-svp")
+    ox = ORCAexecutable()
+    om = ORCAmethod("blyp def2-svp")
     orca = ORCAcalculatorbundle( ox, om )
 
     hydrogen = isolated_system([
@@ -18,4 +18,9 @@ using Test
     ])
 
     test_energy_forces(hydrogen, orca; orca_stdout=devnull)
+    test_forces(hydrogen, orca; orca_stdout=devnull, numgrad=true)
+
+    om = ORCAmethod("blyp def2-svvp") # Broken
+    orca = ORCAcalculatorbundle( ox, om )
+    @test_throws ProcessFailedException AtomsCalculators.potential_energy(hydrogen, orca; orca_stdout=devnull)
 end
