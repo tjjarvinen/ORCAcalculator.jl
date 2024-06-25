@@ -12,9 +12,13 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 
 [compat]
+<<<<<<< compathelper/new_version/2024-06-25-01-35-06-501-03357547695
+AtomsBase = "0.3"
+=======
 ArgCheck = "2"
 Unitful = "1"
 UnitfulAtomic = "1"
+>>>>>>> main
 julia = "1.9"
 
 [extras]
