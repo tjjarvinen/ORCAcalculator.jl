@@ -107,6 +107,27 @@ res = AtomsCalculators.calculate( AtomsCalculators.Energy(), hydrogen, orca )
 @show res[:dipolemoment]
 ```
 
+Also combination calls return dipole moment.
+
+### Low level interface
+
+Low level (calculator) interface uses `ORCAmethod` as `parameter` and `ORCAexecutable` as `state`
+
+```julia
+res = AtomsCalculators.calculate(
+    AtomsCalculators.Energy(),
+    hydrogen,
+    orca, 
+    ORCAmethod(HF def2-svp), 
+    ORCAexecutable()
+)
+
+res[:state] # this is ORCAexecutable
+```
+
+Currently `ORCAexecutable` does not hold any information about the system.
+In the future new functionality to access e.g. orbitals could be added.
+
 ## Example calculate non-covalent interraction between two nitrogen molecules
 
 This example uses counterpoise correction to
