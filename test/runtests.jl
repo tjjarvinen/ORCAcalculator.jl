@@ -1,7 +1,7 @@
 using ORCAcalculator
 using AtomsBase
 using AtomsCalculators
-using AtomsCalculators.AtomsCalculatorsTesting
+using AtomsCalculators.Testing
 using Unitful
 using UnitfulAtomic
 using Test
