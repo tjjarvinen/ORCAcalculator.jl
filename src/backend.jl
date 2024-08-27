@@ -53,7 +53,6 @@ struct ORCAexecutable{Int}
             try
                 executable = readchomp(`which orca_scf`)[begin:end-4]
                 version = 5
-                @info "version 5"
             catch _
                 
             end
@@ -61,7 +60,6 @@ struct ORCAexecutable{Int}
                 try
                     executable = readchomp(`which orca_casscf`)[begin:end-7]
                     version = 6
-                    @info "version 6" 
                 catch _
                     # we failed to find ORCA binary
                     error("Could not find ORCA binary")
@@ -70,7 +68,7 @@ struct ORCAexecutable{Int}
             if ! isfile(executable)
                 error("ORCA executable location does not have all ORCA binaries")
             end
-        elseif isnothing(version) # Find ORCA version
+        elseif isnothing(version) && isfile(executable) # Find ORCA version
             if isfile(executable*"_scf")
                 version = 5
             elseif isfile(executable*"_casscf")
@@ -78,6 +76,8 @@ struct ORCAexecutable{Int}
             else
                 error("Could not determine ORCA version")
             end
+        else
+            error("Could not determine ORCA binary location or version")
         end
         if ! isdir(tmp_dir)
             error("tmp dir does not exist")
