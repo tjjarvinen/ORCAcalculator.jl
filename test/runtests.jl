@@ -20,6 +20,11 @@ using Test
     test_energy_forces(hydrogen, orca; orca_stdout=devnull)
     test_forces(hydrogen, orca; orca_stdout=devnull, numgrad=true)
 
+    e_f = AtomsCalculators.energy_forces(hydrogen, orca)
+    res = ORCAcalculator.get_results(orca)
+    @test haskey(res, :dipolemoment)
+
+
     om = ORCAmethod("blyp def2-svvp") # Broken
     orca = ORCAcalculatorbundle( ox, om )
     @test_throws ProcessFailedException AtomsCalculators.potential_energy(hydrogen, orca; orca_stdout=devnull)

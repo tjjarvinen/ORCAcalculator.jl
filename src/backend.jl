@@ -44,17 +44,48 @@ struct ORCAexecutable{Int}
         maxmem=1000,
         tmp_dir=mktempdir(),
         base_name="orca_calculation",
-        version::Int=6
+        version=nothing
     )   
-        # look for orca_scf instead of orca as there is an other Unix orca program
-        orca_location = something(executable, readchomp(`which orca_casscf`)[begin:end-7])
-        if ! ( isfile(orca_location)   &&   isfile(orca_location*"_casscf")  )
-            error("ORCA executable location does not have all ORCA binaries")
+        
+        if isnothing(version) && isnothing(executable)
+            # look for orca_scf/orca_casscf instead of orca as there is an other Unix orca program
+            # we can also determine version based on which binary is present
+            try
+                executable = readchomp(`which orca_scf`)[begin:end-4]
+                version = 5
+                @info "version 5"
+            catch _
+                
+            end
+            if isnothing(version)
+                try
+                    executable = readchomp(`which orca_casscf`)[begin:end-7]
+                    version = 6
+                    @info "version 6" 
+                catch _
+                    # we failed to find ORCA binary
+                    error("Could not find ORCA binary")
+                end
+            end
+            if ! isfile(executable)
+                error("ORCA executable location does not have all ORCA binaries")
+            end
+        elseif isnothing(version) # Find ORCA version
+            if isfile(executable*"_scf")
+                version = 5
+            elseif isfile(executable*"_casscf")
+                version = 6
+            else
+                error("Could not determine ORCA version")
+            end
         end
         if ! isdir(tmp_dir)
             error("tmp dir does not exist")
         end
-        new{version}(orca_location, ncore, maxmem, tmp_dir, base_name)
+        if isnothing(version)
+            error("ORCA version is undefined")
+        end
+        new{version}(executable, ncore, maxmem, tmp_dir, base_name)
     end
 end
 
@@ -135,120 +166,12 @@ function write_input(
     println(io, "*")
 end
 
-# ORCA v5 backend
-function calculate5(
-    system, 
-    oex::ORCAexecutable, 
-    oct::ORCAmethod; 
-    orca_stdout=devnull, 
-    engrad=false, 
-    numgrad=false, 
-    ghosts=()
-)
-    # Clean old files
-    files = readdir(oex.tmp_dir)
-    foreach(files) do file
-        if occursin( Regex(oex.base_name * "*"), file )
-            rm( joinpath(oex.tmp_dir, file) )
-        end
-    end
+"""
+    calculate(...)
 
-    # Write input
-    f_input = joinpath(oex.tmp_dir, oex.base_name * ".inp")
-    open(f_input, "w") do io
-        write_input(io, system, oex, oct; add_engrad=engrad, add_numgrad=numgrad, ghosts=ghosts)
-    end
+Does the actual calculations
 
-    # Perform calculation
-    try
-        (run ∘ pipeline)(`$(oex.executable) $f_input`; stdout=orca_stdout)
-    catch err
-        # Remove temporary file that can be very large
-        foreach(readdir(oex.tmp_dir)) do file
-            if occursin( Regex(oex.base_name * "*.tmp"), file )
-                rm( joinpath(oex.tmp_dir, file) )
-            end
-        end
-        throw(err)
-    end
-
-    ## Read results #
-    #################
-    out = Dict{Symbol, Any}()
-    orca_results_file = joinpath(oex.tmp_dir, oex.base_name * "_property.txt")
-    if isfile(orca_results_file)
-        res = read(orca_results_file, String)
-
-        # Energy
-        for line in eachline(IOBuffer(res))
-            if occursin(r"Total Energy*\d*", line)
-                e = parse(Float64, split(line)[3])
-                out[:energy] = e * hartree
-                break
-            end
-        end
-
-        # Dipolement
-        lines = split(res, "\n")
-        dipole_lines = nothing
-        for (i,line) in enumerate(lines)
-            if occursin(r"Total Dipole moment:", line)
-                dipole_lines = i+2:i+4
-            end
-        end
-        dipoles = [ parse(Float64, split(lines[i])[2]) for i in dipole_lines  ]
-        out[:dipolemoment] = SVector(dipoles...) .* debye
-    end
-
-    ## Forces output ##
-    ###################
-    orca_engrad_file = joinpath(oex.tmp_dir, oex.base_name * ".engrad")
-    if isfile(orca_engrad_file)  # we have .engrad file
-
-        res = read(orca_engrad_file, String)
-
-        # We need to look for the block type
-        # 0 is unknown block
-        # 1 is energy block
-        # 2 is gradient block coming next, but numbers not started yet
-        # 3 is gradient block numbers started
-        t = 0
-        grad = Float64[]
-        sizehint!(grad, 3*length(system))
-        for line in eachline(IOBuffer(res))
-            #@info "t = $t"
-            if t == 0  # look for block type
-                if occursin(r"The current gradient in Eh/bohr", line)
-                    t = 2
-                elseif occursin(r"The current total energy in Eh", line)
-                    t = 1
-                end
-            else
-                if t == 1 && line[begin] != '#' # energy line number
-                    # this has more decimals than the one in _properties.txt
-                    # so we override the the _properties.txt value
-                    out[:energy] = parse(Float64, line) * hartree
-                    t = 0
-                elseif t == 2 && line[begin] != '#' # gradient line first number
-                    f = parse(Float64, line)
-                    append!(grad, f)
-                    t = 3
-                elseif t == 3 && line[begin] != '#' # gradient line numbers from 2->
-                    f = parse(Float64, line)
-                    append!(grad, f)
-                elseif t == 3 && line[begin] == '#'
-                    #all done
-                    break
-                end
-            end
-        end
-        tmp = reshape(grad, 3, :)
-        out[:forces] = - reinterpret(reshape, SVector{3, Float64}, tmp) * (hartree/bohr)
-    end
-    return out
-end
-
-
+"""
 function calculate(
     system, 
     oex::ORCAexecutable, 
@@ -288,7 +211,7 @@ function calculate(
         throw(err)
     end
 
-    return get_results(oex)
+    return nothing
 end
 
 

@@ -1,5 +1,5 @@
 
-# New AtomsCalculators style with state (execution) and parameters (medhod)
+# New AtomsCalculators style with state (execution) and parameters (method)
 
 """
     ORCAcalculatorbundle
@@ -51,9 +51,20 @@ struct ORCAcalculatorbundle
     method::ORCAmethod
 end
 
+get_results(orca::ORCAcalculatorbundle) = get_results(orca.execution)
+parse_engrad_file(orca::ORCAcalculatorbundle) = parse_engrad_file(orca.execution)
+parse_property_file(orca::ORCAcalculatorbundle) = parse_property_file(orca.execution)
+
 
 AtomsCalculators.energy_unit(::ORCAcalculatorbundle) = hartree
-AtomsCalculators.length_unit(::ORCAcalculatorbundle) = bohr  
+AtomsCalculators.length_unit(::ORCAcalculatorbundle) = bohr
+
+AtomsCalculators.get_state(oeb::ORCAcalculatorbundle) = oeb.execution
+AtomsCalculators.get_parameters(oeb::ORCAcalculatorbundle) = oeb.method
+
+AtomsCalculators.set_state!(oeb::ORCAcalculatorbundle, ox::ORCAexecutable) = ORCAcalculatorbundle(ox, oeb.method) 
+AtomsCalculators.set_parameters!(oeb::ORCAcalculatorbundle, om::ORCAmethod) = ORCAcalculatorbundle(oeb.execution, om)
+
 
 AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
     ::AtomsCalculators.Energy,
@@ -71,8 +82,9 @@ AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
     if isnothing(st)
         st = orca.execution
     end
-    res = calculate(system, st, pr; orca_stdout=orca_stdout, ghosts=ghosts)
-    res[:state] = orca.execution
+    calculate(system, st, pr; orca_stdout=orca_stdout, ghosts=ghosts)
+    res = parse_property_file(orca)
+    res[:state] = AtomsCalculators.get_state(orca)
     return NamedTuple( pairs(res) )
 end
 
@@ -93,8 +105,9 @@ AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
     if isnothing(st)
         st = orca.execution
     end
-    res = calculate(system, st, pr; orca_stdout=orca_stdout, engrad=true, numgrad=numgrad)
-    res[:state] = orca.execution
+    calculate(system, st, pr; orca_stdout=orca_stdout, engrad=true, numgrad=numgrad)
+    res = parse_engrad_file(orca)
+    res[:state] = AtomsCalculators.get_state(orca)
     return NamedTuple( pairs(res) )
 end
 
@@ -109,6 +122,7 @@ function AtomsCalculators.energy_forces(
     numgrad=false, 
     kwargs...
 )
-    res = calculate(system, orca.execution, orca.method; orca_stdout=orca_stdout, engrad=true, numgrad=numgrad)
+    calculate(system, orca.execution, orca.method; orca_stdout=orca_stdout, engrad=true, numgrad=numgrad)
+    res = parse_engrad_file(orca)
     return NamedTuple( pairs(res) )
 end
