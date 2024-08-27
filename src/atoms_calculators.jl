@@ -52,8 +52,8 @@ struct ORCAcalculatorbundle
 end
 
 
-AtomsCalculators.energy_unit(::ORCAcalculatorbundle) = u"hartree"
-AtomsCalculators.length_unit(::ORCAcalculatorbundle) = u"bohr"    
+AtomsCalculators.energy_unit(::ORCAcalculatorbundle) = hartree
+AtomsCalculators.length_unit(::ORCAcalculatorbundle) = bohr  
 
 AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
     ::AtomsCalculators.Energy,
@@ -99,7 +99,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.calculate(
 end
 
 # We only have one output type for forces
-AtomsCalculators.promote_force_type(::AtomsBase.AbstractSystem, ::ORCAcalculatorbundle) = SVector(1., 1., 1.) * u"hartree/bohr" |> typeof
+AtomsCalculators.promote_force_type(::AtomsBase.AbstractSystem, ::ORCAcalculatorbundle) = SVector(1., 1., 1.) * (hartree/bohr) |> typeof
 
 
 function AtomsCalculators.energy_forces(
