@@ -52,6 +52,7 @@ After this you can call `ORCAcalculator.calculate` to perform calculations on [A
 
 ```julia
 ORCAcalculator.calculate(system, orca)
+ORCAcalculator.get_results(orca)
 ```
 
 ## AtomsCalculators Support
@@ -98,12 +99,11 @@ AtomsCalculators.forces(hydrogen, orca)
 AtomsCalculators.forces(hydrogen, orca; numgrad=true)
 ```
 
-You can get access to dipolemoment by using calculator interface
+You can get access to dipolemoment by calling `get_results` after a calculation
 
 ```julia
-# Works for Energy() and Forces()
-res = AtomsCalculators.calculate( AtomsCalculators.Energy(), hydrogen, orca )
-
+e_f = AtomsCalculators.energy_forces( hydrogen, orca )
+res = ORCAcalculator.get_results(orca)
 @show res[:dipolemoment]
 ```
 
@@ -123,6 +123,9 @@ res = AtomsCalculators.calculate(
 )
 
 res[:state] # this is ORCAexecutable
+
+# You can access state to get previous results
+ORCAcalculator.get_results(res[:state])
 ```
 
 Currently `ORCAexecutable` does not hold any information about the system.

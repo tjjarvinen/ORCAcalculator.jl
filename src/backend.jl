@@ -27,7 +27,7 @@ ORCAexecutable(ncore=2, memcore=2000)
 ```
 
 """
-struct ORCAexecutable
+struct ORCAexecutable{Int}
     "path for orca excecutable"
     executable::String
     "number of cores in calculation"
@@ -43,17 +43,49 @@ struct ORCAexecutable
         ncore=1,
         maxmem=1000,
         tmp_dir=mktempdir(),
-        base_name="orca_calculation"
+        base_name="orca_calculation",
+        version=nothing
     )   
-        # look for orca_scf instead of orca as there is an other Unix orca program
-        orca_location = something(executable, readchomp(`which orca_scf`)[begin:end-4])
-        if ! ( isfile(orca_location)   &&   isfile(orca_location*"_scf")  )
-            error("ORCA executable location does not have all ORCA binaries")
+        
+        if isnothing(version) && isnothing(executable)
+            # look for orca_scf/orca_casscf instead of orca as there is an other Unix orca program
+            # we can also determine version based on which binary is present
+            try
+                executable = readchomp(`which orca_scf`)[begin:end-4]
+                version = 5
+            catch _
+                
+            end
+            if isnothing(version)
+                try
+                    executable = readchomp(`which orca_casscf`)[begin:end-7]
+                    version = 6
+                catch _
+                    # we failed to find ORCA binary
+                    error("Could not find ORCA binary")
+                end
+            end
+            if ! isfile(executable)
+                error("ORCA executable location does not have all ORCA binaries")
+            end
+        elseif isnothing(version) && isfile(executable) # Find ORCA version
+            if isfile(executable*"_scf")
+                version = 5
+            elseif isfile(executable*"_casscf")
+                version = 6
+            else
+                error("Could not determine ORCA version")
+            end
+        else
+            error("Could not determine ORCA binary location or version")
         end
         if ! isdir(tmp_dir)
             error("tmp dir does not exist")
         end
-        new(orca_location, ncore, maxmem, tmp_dir, base_name)
+        if isnothing(version)
+            error("ORCA version is undefined")
+        end
+        new{version}(executable, ncore, maxmem, tmp_dir, base_name)
     end
 end
 
@@ -134,7 +166,12 @@ function write_input(
     println(io, "*")
 end
 
+"""
+    calculate(...)
 
+Does the actual calculations
+
+"""
 function calculate(
     system, 
     oex::ORCAexecutable, 
@@ -142,13 +179,16 @@ function calculate(
     orca_stdout=devnull, 
     engrad=false, 
     numgrad=false, 
-    ghosts=()
+    ghosts=(),
+    clean_files=true
 )
     # Clean old files
-    files = readdir(oex.tmp_dir)
-    foreach(files) do file
-        if occursin( Regex(oex.base_name * "*"), file )
-            rm( joinpath(oex.tmp_dir, file) )
+    if clean_files
+        files = readdir(oex.tmp_dir)
+        foreach(files) do file
+            if occursin( Regex(oex.base_name * "*"), file )
+                rm( joinpath(oex.tmp_dir, file) )
+            end
         end
     end
 
@@ -162,7 +202,7 @@ function calculate(
     try
         (run ∘ pipeline)(`$(oex.executable) $f_input`; stdout=orca_stdout)
     catch err
-        # Remove temporary file that can be very large
+        # Remove temporary files that can be very large
         foreach(readdir(oex.tmp_dir)) do file
             if occursin( Regex(oex.base_name * "*.tmp"), file )
                 rm( joinpath(oex.tmp_dir, file) )
@@ -171,24 +211,97 @@ function calculate(
         throw(err)
     end
 
-    ## Read results #
-    #################
+    return nothing
+end
+
+
+function get_results(oex::ORCAexecutable)
+    tmp1 = Threads.@spawn parse_engrad_file(oex)
+    tmp2 = Threads.@spawn parse_property_file(oex)
+    d1 = fetch(tmp1)
+    d2 = fetch(tmp2)
+    foreach(pairs(d2)) do (k,v)
+        d1[k] = v
+    end
+    return d1
+end
+
+
+
+function parse_engrad_file(oex::ORCAexecutable)
+    orca_engrad_file = joinpath(oex.tmp_dir, oex.base_name * ".engrad")
     out = Dict{Symbol, Any}()
-    orca_results_file = joinpath(oex.tmp_dir, oex.base_name * "_property.txt")
+    if isfile(orca_engrad_file)
+        res = read(orca_engrad_file, String)
+        lines = split(res, '\n')
+
+        natoms = parse(Int, lines[4])
+        
+        e = parse(Float64, lines[8])
+        out[:energy] = e * hartree
+
+        f_vector = map( 12:12+3natoms-1 ) do i
+            parse(Float64, lines[i])
+        end
+        f = reinterpret(SVector{3,Float64}, f_vector) .* (hartree/bohr)
+        out[:forces] = f
+    end
+    return out
+end
+
+
+function parse_property_file(oex::ORCAexecutable{6})
+    out = Dict{Symbol, Any}()
+    orca_results_file = joinpath(oex.tmp_dir, oex.base_name * ".property.txt")
     if isfile(orca_results_file)
         res = read(orca_results_file, String)
-
+        lines = split(res, "\n")
+        
         # Energy
-        for line in eachline(IOBuffer(res))
-            if occursin(r"Total Energy*\d*", line)
-                e = parse(Float64, split(line)[3])
-                out[:energy] = e * u"hartree"
+        rgx_energy = r"TOTALENERGY\s+.*\s+(?<energy>[+\-]?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+\-]?\d+)?)\s+\"Hartrees\""
+        for line in lines
+            if occursin(rgx_energy, line)
+                m = match(rgx_energy, line)
+                e = parse(Float64, m[:energy])
+                out[:energy] = e * hartree
                 break
             end
         end
 
         # Dipolement
+        rgx_dipole =  r"&DIPOLETOTAL \[&Type \"ArrayOfDoubles\", &Dim \(3,1\)\] \"Total\""
+        dipole_lines = nothing
+        for (i,line) in enumerate(lines)
+            if occursin(rgx_dipole, line)
+                dipole_lines = i+3:i+5
+            end
+        end
+        if !isnothing(dipole_lines)
+            dipoles = [ parse(Float64, split(lines[i])[2]) for i in dipole_lines  ]
+            out[:dipolemoment] = SVector(dipoles...) * debye
+        end
+    end
+    return out
+end
+
+
+function parse_property_file(oex::ORCAexecutable{5})
+    out = Dict{Symbol, Any}()
+    orca_results_file = joinpath(oex.tmp_dir, oex.base_name * "_property.txt")
+    if isfile(orca_results_file)
+        res = read(orca_results_file, String)
         lines = split(res, "\n")
+
+        # Energy
+        for line in lines
+            if occursin(r"Total Energy*\d*", line)
+                e = parse(Float64, split(line)[3])
+                out[:energy] = e * hartree
+                break
+            end
+        end
+
+        # Dipolement
         dipole_lines = nothing
         for (i,line) in enumerate(lines)
             if occursin(r"Total Dipole moment:", line)
@@ -197,52 +310,6 @@ function calculate(
         end
         dipoles = [ parse(Float64, split(lines[i])[2]) for i in dipole_lines  ]
         out[:dipolemoment] = SVector(dipoles...) .* debye
-    end
-
-    ## Forces output ##
-    ###################
-    orca_engrad_file = joinpath(oex.tmp_dir, oex.base_name * ".engrad")
-    if isfile(orca_engrad_file)  # we have .engrad file
-
-        res = read(orca_engrad_file, String)
-
-        # We need to look for the block type
-        # 0 is unknown block
-        # 1 is energy block
-        # 2 is gradient block coming next, but numbers not started yet
-        # 3 is gradient block numbers started
-        t = 0
-        grad = Float64[]
-        sizehint!(grad, 3*length(system))
-        for line in eachline(IOBuffer(res))
-            #@info "t = $t"
-            if t == 0  # look for block type
-                if occursin(r"The current gradient in Eh/bohr", line)
-                    t = 2
-                elseif occursin(r"The current total energy in Eh", line)
-                    t = 1
-                end
-            else
-                if t == 1 && line[begin] != '#' # energy line number
-                    # this has more decimals than the one in _properties.txt
-                    # so we override the the _properties.txt value
-                    out[:energy] = parse(Float64, line) * u"hartree"
-                    t = 0
-                elseif t == 2 && line[begin] != '#' # gradient line first number
-                    f = parse(Float64, line)
-                    append!(grad, f)
-                    t = 3
-                elseif t == 3 && line[begin] != '#' # gradient line numbers from 2->
-                    f = parse(Float64, line)
-                    append!(grad, f)
-                elseif t == 3 && line[begin] == '#'
-                    #all done
-                    break
-                end
-            end
-        end
-        tmp = reshape(grad, 3, :)
-        out[:forces] = - reinterpret(reshape, SVector{3, Float64}, tmp) * u"hartree/bohr"
     end
     return out
 end
