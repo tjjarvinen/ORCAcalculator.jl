@@ -241,7 +241,8 @@ function parse_engrad_file(oex::ORCAexecutable)
         out[:energy] = e * hartree
 
         f_vector = map( 12:12+3natoms-1 ) do i
-            parse(Float64, lines[i])
+            # forces are -grad
+            -parse(Float64, lines[i])
         end
         f = reinterpret(SVector{3,Float64}, f_vector) .* (hartree/bohr)
         out[:forces] = f
